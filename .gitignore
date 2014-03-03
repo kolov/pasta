@@ -1,0 +1,12 @@
+/target
+/lib
+/classes
+/checkouts
+pom.xml.asc
+.lein-deps-sum
+.lein-failures
+.lein-plugins
+.lein-repl-history
+.idea
+.nrepl-port
+*.iml
