@@ -1,4 +1,4 @@
-(ns pasta.core-test
+(ns pasta.dine_test
   (:use clojure.test
         pasta.core))
 
