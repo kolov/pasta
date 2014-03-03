@@ -1,5 +1,5 @@
 # pasta
 
-Dining philisophers with Clojure async
+Dining philosophers with Clojure async
 
 
