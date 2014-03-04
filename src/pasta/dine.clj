@@ -18,8 +18,9 @@
 
 (def forks (repeatedly N (fn [] (let [c (chan 1)] (>!! c :fork) c))))
 
-(defn left-fork [n] (nth forks (mod (+ N (dec n)) N)))
+(defn left-fork [n] (nth forks n))
 (defn right-fork [n] (nth forks (mod (inc n) N)))
+
 (defn fork-channel [n side]
   (case side
     :left (left-fork n)
@@ -39,7 +40,8 @@
             (>! out :none))))))
 
 (defn return-fork [n side ]
-  (log (philosopher n) " puts " side " fork") (>!! (fork-channel side) :fork))
+  (log (philosopher n) " puts " side " fork") 
+  (go (>! (fork-channel n side) :fork)))
 
 (defn try-to-eat [n t]
   "Get both forks with timeout"
