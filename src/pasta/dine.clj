@@ -30,16 +30,16 @@
 (defn wait [t] (<!! (timeout t)))
 
 (defn grab-fork [n side t out]
-  "Starts a thread trying to grab a fork. On success, passes the fork to channel out"
+  "Starts a thread trying to grab a fork. Passes the fork to channel out"
   (go (do
         (log (philosopher n) " waits for " side " fork")
         (let [[fork _] (alts! [(fork-channel n side) (timeout t)])]
-          (when fork
-            (log (philosopher n) " takes " side " fork")
-            (>! out :left))))))
+          (if fork
+            (do (log (philosopher n) " takes " side " fork") (>! out :left))
+            (>! out :none))))))
 
-(defn return-fork [n side channel]
-  (log (philosopher n) " puts " side " fork") (>!! channel :fork))
+(defn return-fork [n side ]
+  (log (philosopher n) " puts " side " fork") (>!! (fork-channel side) :fork))
 
 (defn try-to-eat [n t]
   "Get both forks with timeout"
@@ -47,15 +47,17 @@
         c-both (chan 2)]
     (grab-fork n :left t c-both)
     (grab-fork n :right t c-both)
+
     (let [
-           [f1 c1] (alts!! [c-both (timeout t)])
-           time-left (max 0 (- deadline (now)))
-           [f2 c2] (alts!! [c-both (timeout time-left)])]
-      (if (and f1 f1)
+           f1 (<!! c-both)
+           f2 (<!! c-both)
+           got #{  f1, f2 }
+           ]
+      (if (= got #{:left, :right})
         (do (log (philosopher n) " eating") (wait (rand-int 3000)))
-        (log (philosopher n) " coud not eat with forks " (if f1 f1 :none) ", " (if f2 f2 :none)))
-      (when f1 (return-fork n f1 c1))
-      (when f2 (return-fork n f2 c2))
+        (log (philosopher n) " coud not eat with forks " got))
+      (when (contains? got :left) (return-fork n :left))
+      (when (contains? got :right) (return-fork n :right))
       )
     ))
 
