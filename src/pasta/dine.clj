@@ -7,10 +7,16 @@
 
 
 
+(defn now [] (System/currentTimeMillis))
+
 ;; simpple thread-safe logging mecahnism, order not guaranteed
 (def log-channel (chan 1000))
 (defn log [& msgs] (>!! log-channel (apply str msgs)))
-(thread (while true (println (<!! log-channel))))
+(def begin (atom (now)))
+
+(go (while true (println
+                  (format "%05d" (- (now) @begin))
+                  (<! log-channel))))
 
 (def N "Number of philosophers" 5)
 (defn philosopher [n] (str "Philosopher " n))
@@ -27,9 +33,7 @@
     :right (right-fork n)))
 
 
-(defn now [] (System/currentTimeMillis))
 
-(defn none[side] (keyword (str "none-" (name side))))
 
 (defn grab-fork [n side t out]
   "Starts a thread trying to grab a fork. Passes the fork to channel out"
@@ -38,7 +42,7 @@
         (let [[fork _] (alts! [(fork-channel n side) (timeout t)])]
           (if fork
             (do (log (philosopher n) " takes " side " fork") (>! out side))
-            (do (log (philosopher n) " did not take " side " fork") (>! out (none side)))))))  )
+            (do (log (philosopher n) " did not take " side " fork") (>! out :none)))))))
 
 (defn return-fork [n side]
   (log (philosopher n) " puts " side " fork")
@@ -54,30 +58,30 @@
     (let [
            f1 (<!! c-both)
            f2 (<!! c-both)
-           got #{f1, f2}
-           l (log (philosopher n) " got " got)
+           got (set (filter #(not= % :none) [f1 f2]))
            ]
       (if (= got #{:left, :right})
         (do (log (philosopher n) " *** eating *** ") (<!! (timeout (rand-int 3000))))
         (log (philosopher n) " coud not eat with forks " got))
-      (when (contains? got :left) (return-fork n :left))
-      (when (contains? got :right) (return-fork n :right))
+
+      (map #(return-fork n %) got)
       )
     ))
 
 (def dinner-on? (atom true))
-(defn set-dinner-on [v] (swap! dinner-on? (fn [_] v)))
+(defn set-dinner-on [v] (swap! dinner-on? (constantly v)))
 (defn finish-dinner [] (set-dinner-on false))
+(defn start-dinner [] (set-dinner-on true))
 
-(defn wait [t] (<! (timeout t)))
 
 (defn dine []
   (set-dinner-on true)
+  (swap! begin (constantly (now)))
   (doseq [n (range N)]
     (go (do
-              (while @dinner-on?
-                (do
-                  (<! (timeout (rand-int 2000)))
-                  (try-to-eat n (rand-int 5000))))
-              (log "Party OVER for " (philosopher n))))))
+          (while @dinner-on?
+            (do
+              (<! (timeout (rand-int 2000)))
+              (try-to-eat n (rand-int 5000))))
+          (log "Party OVER for " (philosopher n))))))
 
