@@ -9,19 +9,26 @@
 
 (defn now [] (.getTime (js/Date.)))
 
-;; simpple thread-safe logging mecahnism, order not guaranteed.
+;; simple thread-safe logging mecahnism, order not guaranteed.
 (def log-channel (chan 1000))
 (defn log [& msgs] (go (>! log-channel (apply str msgs))))
 (def begin (atom (now)))
 
+(defn append [txt id]
+  (let [el (.getElementById js/document "result")]
+    (set! (.-innerHTML el) (str (.-innerHTML el) txt))))
+
 (defn start-logging []
-  (go (while true (let [
-                         txt (str (- (now) @begin) "")
-                         result (.getElementById js/document "result")]
-                    (set! (.-innerHTML result) (<! log-channel))))))
+  (go (while true
+        (let [timestamp (str (- (now) @begin))
+              txt (str "<p>" timestamp ": " (<! log-channel) "</p>")]
+          (append txt "result")))))
 
 (def N "Number of philosophers" 5)
 (defn philosopher [n] (str "Philosopher " n))
+(def EAT-TIME 10000)
+(def REST-TIME 10000)
+(def TRY-TIME 3000)
 
 
 (def forks (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :fork) c)))))
@@ -63,7 +70,7 @@
              got (set (filter #(not= % :none) [f1 f2]))
              ]
         (if (= got #{:left, :right})
-          (do (log (philosopher n) " *** eating *** ") (<! (timeout (rand-int 3000))))
+          (do (log (philosopher n) " *** eating *** ") (<! (timeout (rand-int EAT-TIME))))
           (log (philosopher n) " coud not eat with forks " got))
 
         (map #(return-fork n %) got)
@@ -83,11 +90,14 @@
     (go (do
           (while @dinner-on?
             (do
-              (<! (timeout (rand-int 2000)))
-              (try-to-eat n (rand-int 5000))))
+              (try-to-eat n (rand-int TRY-TIME))
+              (<! (timeout (rand-int REST-TIME)))
+              ))
           (log "Party OVER for " (philosopher n))))))
 
 (start-logging)
 
-(dine)
+; make visible in javascript
+(defn  ^:export startDinner [] (dine))
+(defn  ^:export stopDinner [] (finish-dinner))
 
