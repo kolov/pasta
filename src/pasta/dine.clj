@@ -64,7 +64,7 @@
         (do (log (philosopher n) " *** eating *** ") (<!! (timeout (rand-int 3000))))
         (log (philosopher n) " coud not eat with forks " got))
 
-      (map #(return-fork n %) got)
+      (doseq [side got] (return-fork n side))
       )
     ))
 

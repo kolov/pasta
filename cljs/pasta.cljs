@@ -1,6 +1,6 @@
 (ns pasta.dine
   (:require [cljs.core.async
-             :refer [chan >! <! timeout]
+             :refer [chan >! <! timeout put! take!]
              ])
   (:require-macros [cljs.core.async.macros :refer [go alt!]])
   )
@@ -9,14 +9,17 @@
 
 (defn now [] (.getTime (js/Date.)))
 
+;; basic DOM stuff
+(defn append [txt id]
+  (let [el (.getElementById js/document id)]
+    (set! (.-innerHTML el) (str (.-innerHTML el) txt))))
+
+(defn clear [id] (set! (.-innerHTML (.getElementById js/document id)) ""))
 ;; simple thread-safe logging mecahnism, order not guaranteed.
 (def log-channel (chan 1000))
 (defn log [& msgs] (go (>! log-channel (apply str msgs))))
 (def begin (atom (now)))
 
-(defn append [txt id]
-  (let [el (.getElementById js/document "result")]
-    (set! (.-innerHTML el) (str (.-innerHTML el) txt))))
 
 (defn start-logging []
   (go (while true
@@ -55,7 +58,7 @@
 
 (defn return-fork [n side]
   (log (philosopher n) " puts " side " fork")
-  (go (>! (fork-channel n side) :fork)))
+  (put! (fork-channel n side) :fork))
 
 (defn try-to-eat [n t]
   "Get both forks with timeout"
@@ -72,8 +75,7 @@
         (if (= got #{:left, :right})
           (do (log (philosopher n) " *** eating *** ") (<! (timeout (rand-int EAT-TIME))))
           (log (philosopher n) " coud not eat with forks " got))
-
-        (map #(return-fork n %) got)
+        (doseq [side got] (return-fork n side))
         ))
     ))
 
@@ -84,6 +86,7 @@
 
 
 (defn dine []
+  (clear "result")
   (set-dinner-on true)
   (swap! begin (constantly (now)))
   (doseq [n (range N)]
@@ -91,13 +94,13 @@
           (while @dinner-on?
             (do
               (try-to-eat n (rand-int TRY-TIME))
-              (<! (timeout (rand-int REST-TIME)))
+              (take! (timeout (rand-int REST-TIME)) identity)
               ))
           (log "Party OVER for " (philosopher n))))))
 
 (start-logging)
 
 ; make visible in javascript
-(defn  ^:export startDinner [] (dine))
-(defn  ^:export stopDinner [] (finish-dinner))
+(defn ^:export startDinner [] (dine))
+(defn ^:export stopDinner [] (finish-dinner))
 

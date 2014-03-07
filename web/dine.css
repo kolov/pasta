@@ -1,0 +1,12 @@
+p {
+    font-size: small;
+    line-height: 90%;
+    margin: 0px;
+}
+
+#result {
+    height: 80%;
+    width: 40em;
+    overflow: scroll;
+    background-color: #f0f0f0;
+}
