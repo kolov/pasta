@@ -69,9 +69,8 @@
     ))
 
 (def dinner-on? (atom true))
-(defn set-dinner-on [v] (swap! dinner-on? (constantly v)))
-(defn finish-dinner [] (set-dinner-on false))
-(defn start-dinner [] (set-dinner-on true))
+(defn finish-dinner [] (reset! dinner-on? false))
+(defn start-dinner [] (reset! dinner-on? true))
 
 
 (defn dine []

@@ -22,6 +22,7 @@
 
 
 (defn start-logging []
+  (reset! begin (now))
   (go (while true
         (let [timestamp (str (- (now) @begin))
               txt (str "<p>" timestamp ": " (<! log-channel) "</p>")]
@@ -35,6 +36,7 @@
 
 
 (def forks (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :fork) c)))))
+(def hands (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :h) (>! c :h) c)))))
 
 (defn left-fork [n] (nth forks n))
 (defn right-fork [n] (nth forks (mod (inc n) N)))
@@ -50,6 +52,7 @@
 (defn grab-fork [n side t out]
   "Starts a thread trying to grab a fork. Passes the fork to channel out"
   (go (do
+        (<! hands)
         (log (philosopher n) " waits for " side " fork")
         (let [[fork _] (alts! [(fork-channel n side) (timeout t)])]
           (if fork
@@ -64,6 +67,7 @@
   "Get both forks with timeout"
   (let [deadline (+ t (now))
         c-both (chan 2)]
+
     (grab-fork n :left t c-both)
     (grab-fork n :right t c-both)
     (go
@@ -80,25 +84,26 @@
     ))
 
 (def dinner-on? (atom true))
-(defn set-dinner-on [v] (swap! dinner-on? (constantly v)))
-(defn finish-dinner [] (set-dinner-on false))
-(defn start-dinner [] (set-dinner-on true))
+(defn finish-dinner [] (reset! dinner-on? false))
+(defn start-dinner [] (reset! dinner-on? true))
 
 
 (defn dine []
   (clear "result")
-  (set-dinner-on true)
-  (swap! begin (constantly (now)))
+  (log "Dinner served")
+  (start-dinner true)
+  (start-logging)
   (doseq [n (range N)]
-    (go (do
-          (while @dinner-on?
-            (do
-              (try-to-eat n (rand-int TRY-TIME))
-              (take! (timeout (rand-int REST-TIME)) identity)
-              ))
-          (log "Party OVER for " (philosopher n))))))
+    (do
+      (log "Enters " (philosopher n))
+      ;    (while @dinner-on?
+      (do
+        (try-to-eat n (rand-int TRY-TIME))
+        (take! (timeout (rand-int REST-TIME)) identity)
+        )
 
-(start-logging)
+      (log "Party OVER for " (philosopher n)))))
+
 
 ; make visible in javascript
 (defn ^:export startDinner [] (dine))
