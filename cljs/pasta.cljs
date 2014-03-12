@@ -31,7 +31,7 @@
 (def N "Number of philosophers" 5)
 (defn philosopher [n] (str "Philosopher " n))
 (def EAT-TIME 10000)
-(def REST-TIME 10000)
+(def THINK-TIME 10000)
 (def TRY-TIME 3000)
 
 
@@ -49,11 +49,11 @@
 (defn philo-channel [n] (nth philos n))
 
 (defn grab-fork [n side out]
-  "Starts a thread trying to grab a fork. Passes the fork to channel out"
+  "Starts a go block trying to grab a fork. Passes the fork to channel out"
 
   (go
     (log (philosopher n) " waits for " side " fork")
-    (let [[fork _] (alts! [(fork-channel n side) (timeout TRY-TIME)])]
+    (let [[fork _] (alts! [(fork-channel n side) (timeout (rand-int TRY-TIME))])]
       (if fork
         (do (log (philosopher n) " takes " side " fork") (>! out side))
         (do (log (philosopher n) " did not take " side " fork") (>! out :none))))))
@@ -72,6 +72,7 @@
         (log (philosopher n) " coud not eat with forks " got))
 
       (doseq [side got] (return-fork n side))
+      (<! (timeout (rand-int THINK-TIME)))
       (>! (philo-channel n) :ready)
       )))
 
