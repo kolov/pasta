@@ -1,6 +1,6 @@
 (ns pasta.dine
   (:require [cljs.core.async
-             :refer [chan >! <! timeout put! take!]
+             :refer [chan >! <! timeout put! take! alts!]
              ])
   (:require-macros [cljs.core.async.macros :refer [go alt!]])
   )
@@ -36,7 +36,7 @@
 
 
 (def forks (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :fork) c)))))
-(def hands (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :h) (>! c :h) c)))))
+(def philos (repeatedly N (fn [] (let [c (chan 1)] (go (>! c :ready) c)))))
 
 (defn left-fork [n] (nth forks n))
 (defn right-fork [n] (nth forks (mod (inc n) N)))
@@ -46,42 +46,40 @@
     :left (left-fork n)
     :right (right-fork n)))
 
+(defn philo-channel [n] (nth philos n))
 
-
-
-(defn grab-fork [n side t out]
+(defn grab-fork [n side out]
   "Starts a thread trying to grab a fork. Passes the fork to channel out"
-  (go (do
-        (<! hands)
-        (log (philosopher n) " waits for " side " fork")
-        (let [[fork _] (alts! [(fork-channel n side) (timeout t)])]
-          (if fork
-            (do (log (philosopher n) " takes " side " fork") (>! out side))
-            (do (log (philosopher n) " did not take " side " fork") (>! out :none)))))))
+
+  (go
+    (log (philosopher n) " waits for " side " fork")
+    (let [[fork _] (alts! [(fork-channel n side) (timeout TRY-TIME)])]
+      (if fork
+        (do (log (philosopher n) " takes " side " fork") (>! out side))
+        (do (log (philosopher n) " did not take " side " fork") (>! out :none))))))
 
 (defn return-fork [n side]
   (log (philosopher n) " puts " side " fork")
   (put! (fork-channel n side) :fork))
 
-(defn try-to-eat [n t]
-  "Get both forks with timeout"
-  (let [deadline (+ t (now))
-        c-both (chan 2)]
+(defn eat [n out]
+  (go
 
-    (grab-fork n :left t c-both)
-    (grab-fork n :right t c-both)
-    (go
-      (let [
-             f1 (<! c-both)
-             f2 (<! c-both)
-             got (set (filter #(not= % :none) [f1 f2]))
-             ]
-        (if (= got #{:left, :right})
-          (do (log (philosopher n) " *** eating *** ") (<! (timeout (rand-int EAT-TIME))))
-          (log (philosopher n) " coud not eat with forks " got))
-        (doseq [side got] (return-fork n side))
-        ))
-    ))
+    (log "Hi there " n)
+    (let [
+           f1 (<! out)
+           f2 (<! out)
+           got (set (filter #(not= % :none) [f1 f2]))
+           ]
+      (if (= got #{:left, :right})
+        (do (log (philosopher n) " *** eating *** ") (<! (timeout (rand-int EAT-TIME))))
+        (log (philosopher n) " coud not eat with forks " got))
+
+      (doseq [side got] (return-fork n side))
+      (>! (philo-channel n) :ready)
+      (log "Eetcycle finished " (philosopher n))
+
+      )))
 
 (def dinner-on? (atom true))
 (defn finish-dinner [] (reset! dinner-on? false))
@@ -91,18 +89,31 @@
 (defn dine []
   (clear "result")
   (log "Dinner served")
-  (start-dinner true)
+  ;(start-dinner)
   (start-logging)
   (doseq [n (range N)]
-    (do
+    (let [out (chan 2)]
       (log "Enters " (philosopher n))
-      ;    (while @dinner-on?
-      (do
-        (try-to-eat n (rand-int TRY-TIME))
-        (take! (timeout (rand-int REST-TIME)) identity)
+      (go
+        (log (philosopher n) 0)
+        (while @dinner-on?
+          (do
+            (log (philosopher n) 1)
+            (<! (philo-channel n))
+            (log (philosopher n) 2)
+            (grab-fork n :left out)
+            (log (philosopher n) 3)
+            (grab-fork n :right out)
+            (log (philosopher n) 4)
+            (eat n out)
+            (log (philosopher n) 5)
+           (finish-dinner)
+            )
+          )
+        (log "Party OVER for " (philosopher n))
         )
 
-      (log "Party OVER for " (philosopher n)))))
+      )))
 
 
 ; make visible in javascript
