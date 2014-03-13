@@ -18,4 +18,7 @@ The solution I came with in ClojureScript required several channels:
 The Clojure implementation was easier to me, because of availability of explicit threads and blocking operations >!! and <!!. Every philisopher got his own thread where he could block waiting for a fork. In clojurescript, this happens in another loop in a go block synchronized with another channel (second channel from the list above, it wasn't necessary in clojure).
 
 The beauty of core.async is that it allows writing async code for the browser, as though javascript wasn't single-threaded.
+
+#  Demo 
+
 See it running at http://code.akolov.com/pasta/dine.html
